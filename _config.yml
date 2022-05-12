@@ -17,10 +17,12 @@ description: >-                        # used by seo meta and the atom feed
 # fill in the protocol & hostname for your site, e.g., 'https://username.github.io'
 
 github:
-   username: farrimwildaxe             # change to your github username
+  # change to your github username
+  username: farrimwildaxe
 
 twitter:
-   username: farrimwildaxe            # change to your twitter username
+  # change to your twitter username
+  username: farrimwildaxe
 
 social:
   # Change to your full name.
@@ -36,7 +38,7 @@ social:
     # - https://www.linkedin.com/in/username
 
 # the avatar on sidebar, support local or CORS resources
-avatar: /assets/farrim-wildaxe.jpg
+avatar: "/assets/farrim-wildaxe.jpg"
 
 # boolean type, the global switch for ToC in posts.
 toc: true
