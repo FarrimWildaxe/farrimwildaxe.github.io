@@ -1,4 +1,4 @@
-url: https://farrim.re
+url: https://farrim.re/
 name: Farrim Wildaxe blog
 title: Farrim Wildaxe blog
 lang: en
@@ -9,7 +9,7 @@ remote_theme: FarrimWildaxe/jekyll-theme-chirpy
 plugins:
   - jemoji
 
-tagline:    # it will display as the sub-title
+tagline: tagline # it will display as the sub-title
 
 description: >-                        # used by seo meta and the atom feed
   A hackers interested in information technology and cybersecurity.
@@ -27,7 +27,7 @@ social:
   # Change to your full name.
   # It will be displayed as the default author of the posts and the copyright owner in the Footer
   name: Farrim Wildaxe
-  email: FarrimWildaxe@protonmail.com        # change to your email address
+  email: FarrimWildaxe@protonmail.com # change to your email address
   links:
     # The first element serves as the copyright owner's link
     # change to your twitter homepage
@@ -39,7 +39,7 @@ social:
     # - https://www.linkedin.com/in/username
 
 # the avatar on sidebar, support local or CORS resources
-avatar: assets/farrimwildaxe.png
+avatar: /assets/farrimwildaxe.jpg
 
 # boolean type, the global switch for ToC in posts.
 toc: true

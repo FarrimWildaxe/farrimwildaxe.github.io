@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 source "https://rubygems.org"
-
-gem "jekyll-theme-chirpy", "~> 5.1", ">= 5.1.0"
+# use git version due to: https://github.com/cotes2020/jekyll-theme-chirpy/issues/537
+gem "jekyll-theme-chirpy", "5.1.0", git: 'https://github.com/cotes2020/jekyll-theme-chirpy'
 
 group :test do
   gem "html-proofer", "~> 3.18"
