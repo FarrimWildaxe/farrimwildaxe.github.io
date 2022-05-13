@@ -39,7 +39,7 @@ social:
     # - https://www.linkedin.com/in/username
 
 # the avatar on sidebar, support local or CORS resources
-avatar: assets/farrimwildaxe.jpg
+avatar: https://farrim.re/assets/farrimwildaxe.jpg
 
 # boolean type, the global switch for ToC in posts.
 toc: true
