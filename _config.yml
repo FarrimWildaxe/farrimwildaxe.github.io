@@ -1,6 +1,6 @@
 url: https://farrim.re
-name: Farrim Wildaxe blog
-title: Farrim Wildaxe blog
+name: Farrim's blog
+title: Farrim's blog
 lang: en
 theme_mode: #dark
 google_analytics:
@@ -9,7 +9,7 @@ remote_theme: FarrimWildaxe/jekyll-theme-chirpy
 plugins:
   - jemoji
 
-tagline: tagline # it will display as the sub-title
+tagline: # it will display as the sub-title
 
 description: >-                        # used by seo meta and the atom feed
   A hackers interested in information technology and cybersecurity.
