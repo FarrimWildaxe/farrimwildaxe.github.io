@@ -6,7 +6,7 @@ categories: [Writeup, HTB]
 tags: [htb,writeup,blue,eternal_blue,metasploit]
 img_path: /assets/img/htb/blue
 image:
-  path: blue.jpg
+  path: blue.png
   width: 700   # in pixels
   height: 516   # in pixels
   alt: image alternative text
