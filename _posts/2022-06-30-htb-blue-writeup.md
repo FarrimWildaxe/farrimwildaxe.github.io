@@ -4,9 +4,9 @@ date: 2022-06-30T22:13:33+01:00
 author: Farrim Wildaxe
 categories: [Writeup, HTB]
 tags: [htb,writeup,blue,eternal_blue,metasploit]
-img_path: /img/htb/blue
+img_path: /assets/img/htb/blue
 image:
-  path: /assets/img/htb/blue/blue.jpg
+  path: blue.jpg
   width: 700   # in pixels
   height: 516   # in pixels
   alt: image alternative text
