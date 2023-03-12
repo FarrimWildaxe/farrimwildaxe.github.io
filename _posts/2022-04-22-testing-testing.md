@@ -1,9 +1,7 @@
 ---
 title: Testing testing...
 date: 2022-04-22 15:58:33 +0200
-author:
-   name: Farrim Wildaxe
-   url: https://farrim.re
+author: farrimwildaxe
 published: true
 ---
 ## Hello World

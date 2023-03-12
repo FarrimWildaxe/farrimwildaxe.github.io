@@ -1,9 +1,7 @@
 ---
 title: HTB Blue - writeup
 date: 2022-06-30 22:13:33 +0100
-author:
-   name: Farrim Wildaxe
-   url: https://farrim.re
+author: farrimwildaxe
 categories: [Writeup, HTB]
 tags: [htb,writeup,blue,eternal_blue,metasploit]
 img_path: /assets/img/htb/blue
