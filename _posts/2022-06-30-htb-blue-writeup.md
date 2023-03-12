@@ -1,7 +1,9 @@
 ---
 title: HTB Blue - writeup
 date: 2022-06-30 22:13:33 +0100
-author: Farrim Wildaxe
+author:
+   name: Farrim Wildaxe
+   url: https://farrim.re
 categories: [Writeup, HTB]
 tags: [htb,writeup,blue,eternal_blue,metasploit]
 img_path: /assets/img/htb/blue
@@ -12,7 +14,7 @@ image:
   alt: image alternative text
 published: true
 ---
-## HTB/Blue
+
 
 
 Blue machine is probably one of the easiest Windows machines on HackTheBox. Potential vulnerability is already hidden in machine name ;). But first thing first, let’s do an enumeration with nmap:
