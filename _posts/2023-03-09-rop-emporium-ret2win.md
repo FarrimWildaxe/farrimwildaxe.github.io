@@ -1,9 +1,7 @@
 ---
 title: ROP Emporium - ret2win (x64) - writeup
 date: 2023-03-09 21:02:01 +0100
-author:
-   name: Farrim Wildaxe
-   url: https://farrim.re
+author: farrimwildaxe
 categories: [Writeup,ROP Emporium]
 tags: [rop,emporium,x64,ret2win,writeup,pwntools]
 img_path: /assets/img/ropemporium/ret2win
