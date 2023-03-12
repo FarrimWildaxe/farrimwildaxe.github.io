@@ -1,6 +1,6 @@
 ---
 title: HTB Blue - writeup
-date: 2022-06-30T22:13:33+01:00
+date: 2022-06-30 22:13:33 +0100
 author: Farrim Wildaxe
 categories: [Writeup, HTB]
 tags: [htb,writeup,blue,eternal_blue,metasploit]
@@ -10,6 +10,7 @@ image:
   width: 700   # in pixels
   height: 516   # in pixels
   alt: image alternative text
+published: true
 ---
 ## HTB/Blue
 

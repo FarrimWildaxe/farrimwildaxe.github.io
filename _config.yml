@@ -44,6 +44,10 @@ avatar: https://farrim.re/assets/farrimwildaxe.jpg
 # boolean type, the global switch for ToC in posts.
 toc: true
 
+future: true
+paginate: 5
+paginate_path: ./page:num/
+
 # ------------ The following options are not recommended to be modified ------------------
 baseurl: ''
 kramdown:
