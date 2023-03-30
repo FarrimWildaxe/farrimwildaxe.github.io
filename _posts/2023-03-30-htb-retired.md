@@ -454,7 +454,7 @@ checksec ./activate_license.bin
     PIE:      PIE enabled
 ```
 
-This and `randomize_va_space: 2` from the ruby script output means that we have ASLR enabled - addresses are randomised every time program is started, Full RELRO, so we cant overwrite .plt or .got tables and NX bit protection - we can't execute code on stack unless we enable executable flag on that memory part. We can do it by calling `mprotect()` and changing memory flags to RWX for the whole stack. mprotect() call uses three arguments for address, size, and memory flags, so we must control `RDI`, `RSI`, and `RDX`. Here are POP / RET gadgets from the activate_license binary:
+This and `randomize_va_space: 2` from the ruby script output means that: we have ASLR enabled - addresses are randomised every time program is started, there's Full RELRO, so we cant overwrite .plt or .got tables and NX bit protection - we can't execute code on stack unless we enable executable flag on that memory part. We can do it by calling `mprotect()` and changing memory flags to RWX for the whole stack. mprotect() call uses three arguments for address, size, and memory flags, so we must control `RDI`, `RSI`, and `RDX`. Here are POP / RET gadgets from the activate_license binary:
 
 ```bash
 ROPgadget --binary ./activate_license.bin --only "pop|ret"                                                                                                                                                      
@@ -747,7 +747,7 @@ find / -type f -perm /4000 -exec ls -alh {} \; 2>/dev/null
 
 Also, checking the system with [LinPEAS](https://github.com/carlospolop/PEASS-ng/tree/master/linPEAS) gives little more information. From the previous stage, we know that there is a `dev` user. Let's check his home directory. Unfortunately, we don't have enough permissions to check what's inside. The shell is spawned in `/var/www` directory for user `www-data`. After looking around, we can notice three ZIP files. They contain a backup of the `/var/www/html` directory, and they're done periodically every minute. We can exploit this behaviour in the next stage.
 
-**Lateral movement**
+## Lateral movement
 
 We've learned about users on the host from the previous stages, so the short escalation path will look like this: www-data → dev → root.
 
