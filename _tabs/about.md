@@ -7,12 +7,9 @@ order: 1
 <div class="content">
   <div class="posts">
     <article class="content">
-    <p>
-    
-    </p>
-    <p>
-        Contact: FarrimWildaxe@protonmail.com
-    </p>
+    <p>A self-taught security enthusiast who remembers what "int 21h" do, <A href="https://tryhackme.com/p/FarrimWildaxe">TryHackMe</a> and a <a href="https://app.hackthebox.com/profile/759427">HackTheBox</a> fan.</p>
+
+    <p>Contact: FarrimWildaxe@protonmail.com</p>
     </article>
   </div>
 </div>
