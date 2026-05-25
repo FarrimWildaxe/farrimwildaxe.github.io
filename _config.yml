@@ -12,7 +12,7 @@ plugins:
 tagline: # it will display as the sub-title
 
 description: >-                        # used by seo meta and the atom feed
-  A hackers interested in information technology and cybersecurity.
+  A hacker interested in information technology and cybersecurity.
 # fill in the protocol & hostname for your site, e.g., 'https://username.github.io'
 
 github:
