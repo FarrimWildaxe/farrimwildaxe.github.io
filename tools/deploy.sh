@@ -57,9 +57,8 @@ build() {
 
 test() {
   bundle exec htmlproofer \
-    --disable-external \
-    --check-html \
-    --allow_hash_href \
+    --allow-hash-href \
+    --url-ignore \
     "$SITE_DIR"
 }
 
