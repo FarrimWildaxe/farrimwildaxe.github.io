@@ -4,7 +4,7 @@ date: 2023-03-09 21:02:01 +0100
 author: farrimwildaxe
 categories: [Writeup,ROP Emporium]
 tags: [rop,emporium,x64,ret2win,writeup,pwntools]
-img_path: /assets/img/ropemporium/ret2win
+media_subpath: /assets/img/ropemporium/ret2win
 published: true
 ---
 

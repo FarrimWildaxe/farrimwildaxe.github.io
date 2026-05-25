@@ -4,7 +4,7 @@ date: 2023-03-30 01:33:38 +0100
 author: farrimwildaxe
 categories: [Writeup,HTB]
 tags: [htb,retired,writeup,pwntools,rop,lfi]
-img_path: /assets/img/htb/retired
+media_subpath: /assets/img/htb/retired
 image:
   path: retired.png
   width: 700   # in pixels

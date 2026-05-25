@@ -4,7 +4,7 @@ date: 2023-03-15 00:27:03 +0100
 author: farrimwildaxe
 categories: [Writeup,ROP Emporium]
 tags: [rop,emporium,x64,callme,writeup,pwntools]
-img_path: /assets/img/ropemporium/callme
+media_subpath: /assets/img/ropemporium/callme
 published: true
 ---
 
