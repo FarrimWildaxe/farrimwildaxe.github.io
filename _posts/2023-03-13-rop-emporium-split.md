@@ -4,7 +4,7 @@ date: 2023-03-13 22:07:31 +0100
 author: farrimwildaxe
 categories: [Writeup,ROP Emporium]
 tags: [rop,emporium,x64,split,writeup,pwntools]
-img_path: /assets/img/ropemporium/split
+media_subpath: /assets/img/ropemporium/split
 published: true
 ---
 

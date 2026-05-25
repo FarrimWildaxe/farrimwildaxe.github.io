@@ -4,7 +4,7 @@ date: 2022-06-30 22:13:33 +0100
 author: farrimwildaxe
 categories: [Writeup, HTB]
 tags: [htb,writeup,blue,eternal_blue,metasploit]
-img_path: /assets/img/htb/blue
+media_subpath: /assets/img/htb/blue
 image:
   path: blue.png
   width: 700   # in pixels
