@@ -10,7 +10,15 @@ order: 4
       <h1><a href="{{ post.url | relative_url }}">{{ post.title }}</a></h1>
       <div class="post-content">
         <p>
-          {% include no-linenos.html content=post.content %}
+          {% comment %}
+            Remove the line number of the code snippet.
+          {% endcomment %}
+          {% assign content = post.content %}
+
+          {% if content contains '<td class="rouge-gutter gl"><pre class="lineno">' %}
+            {% assign content = content | replace: '<td class="rouge-gutter gl"><pre class="lineno">', '<!-- <td class="rouge-gutter gl"><pre class="lineno">'%}
+            {% assign content = content | replace: '</td><td class="rouge-code">', '</td> --><td class="rouge-code">' %}
+          {% endif %}
           {{ content | markdownify | strip_html | truncate: 200 | escape }}
         </p>
       </div>
