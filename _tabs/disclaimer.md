@@ -2,6 +2,7 @@
 title: Disclaimer
 date: 2022-04-22T15:50:56+02:00
 author: Farrim Wildaxe
+icon: fas fa-message
 order: 6
 ---
 <div class="content">

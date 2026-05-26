@@ -2,6 +2,7 @@
 title: Writeups
 date: 2022-04-22T16:46:22+01:00
 author: Farrim Wildaxe
+icon: fas fa-file-pen
 order: 4
 ---
 <div id="post-list">
